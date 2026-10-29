@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <meta name="robots" content="noindex">
+    <title>リスト差分</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: sans-serif;
+            background-color: #f4f4f9;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px;
+            background-color: #333;
+        }
+        button {
+            padding: 8px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #555;
+            color: #fff;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #777;
+        }
+        button.clear-btn {
+            background-color: #d9534f;
+        }
+        button.clear-btn:hover {
+            background-color: #c9302c;
+        }
+        .settings {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 16px;
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #333;
+            background-color: #e6e6ee;
+            border-bottom: 1px solid #ccc;
+        }
+        .settings-title {
+            font-weight: bold;
+        }
+        .settings label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .diff-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            min-height: 0;
+        }
+        .diff-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 0;
+        }
+        .diff-pane > label {
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+        }
+        textarea {
+            flex: 1;
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            font-family: monospace;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            outline: none;
+        }
+        textarea[readonly] {
+            background-color: #fffbe6;
+        }
+        @media (max-width: 768px) {
+            .diff-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button onclick="location.href = './index.html'">エディタに戻る</button>
+        <button id="copyBtn" onclick="copyDiff()">差分をコピー</button>
+        <button onclick="swapLists()">左右を入れ替え</button>
+        <button class="clear-btn" onclick="clearAll()">すべてクリア</button>
+    </div>
+
+    <div class="settings">
+        <span class="settings-title">比較の設定</span>
+        <label><input type="checkbox" id="optTrim" onchange="updateDiff()" checked>前後の空白を無視</label>
+        <label><input type="checkbox" id="optSkipEmpty" onchange="updateDiff()" checked>空行を除外</label>
+        <label><input type="checkbox" id="optIgnoreCase" onchange="updateDiff()">大文字・小文字を区別しない</label>
+        <label><input type="checkbox" id="optDedupe" onchange="updateDiff()" checked>差分の重複をまとめる</label>
+    </div>
+
+    <div class="diff-container">
+        <div class="diff-pane">
+            <label for="diffLeft">左側リスト</label>
+            <textarea id="diffLeft" oninput="updateDiff()" placeholder="改行区切りで入力..."></textarea>
+        </div>
+        <div class="diff-pane">
+            <label for="diffRight">右側リスト</label>
+            <textarea id="diffRight" oninput="updateDiff()" placeholder="改行区切りで入力..."></textarea>
+        </div>
+        <div class="diff-pane">
+            <label for="diffResult" id="diffResultLabel">差分（左にだけある行）0 件</label>
+            <textarea id="diffResult" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        const diffLeft = document.getElementById('diffLeft');
+        const diffRight = document.getElementById('diffRight');
+        const diffResult = document.getElementById('diffResult');
+
+        // 左側リストから右側リストを引いた差分（左側のみの行）を表示
+        function updateDiff() {
+            const trim = document.getElementById('optTrim').checked;
+            const skipEmpty = document.getElementById('optSkipEmpty').checked;
+            const ignoreCase = document.getElementById('optIgnoreCase').checked;
+            const dedupe = document.getElementById('optDedupe').checked;
+
+            const toLines = text => text.split('\n')
+                .map(line => trim ? line.trim() : line)
+                .filter(line => !skipEmpty || line.trim() !== '');
+            // 比較用のキー（表示は元の行のまま）
+            const toKey = line => ignoreCase ? line.toLowerCase() : line;
+
+            const rightKeys = new Set(toLines(diffRight.value).map(toKey));
+            const seen = new Set();
+            const leftOnly = toLines(diffLeft.value).filter(line => {
+                const key = toKey(line);
+                if (rightKeys.has(key)) return false;
+                if (dedupe) {
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                }
+                return true;
+            });
+
+            diffResult.value = leftOnly.join('\n');
+            document.getElementById('diffResultLabel').innerText = `差分（左にだけある行）${leftOnly.length} 件`;
+        }
+
+        // 差分をクリップボードにコピー
+        async function copyDiff() {
+            const copyBtn = document.getElementById('copyBtn');
+            try {
+                await navigator.clipboard.writeText(diffResult.value);
+                copyBtn.innerText = 'コピーしました';
+            } catch (err) {
+                console.error("コピーエラー:", err);
+                copyBtn.innerText = 'コピーに失敗しました';
+            }
+            setTimeout(() => { copyBtn.innerText = '差分をコピー'; }, 1500);
+        }
+
+        // 左右のリストを入れ替え
+        function swapLists() {
+            [diffLeft.value, diffRight.value] = [diffRight.value, diffLeft.value];
+            updateDiff();
+        }
+
+        // すべてクリア
+        function clearAll() {
+            diffLeft.value = '';
+            diffRight.value = '';
+            updateDiff();
+        }
+    </script>
+</body>
+</html>
