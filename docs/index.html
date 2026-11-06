@@ -103,7 +103,7 @@
         }
 
         async function convertToRuby() {
-          const text = inputText.value;
+          const text = document.getElementById('editor').value;
           if (!text.trim()) return;
 
           try {
