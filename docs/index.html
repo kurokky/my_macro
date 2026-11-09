@@ -127,7 +127,7 @@
             }
 
 
-            resultDiv.innerHTML = ret_array.join("\n");
+            document.getElementById('editor').value = ret_array.join("\n");
           } catch (err) {
             console.error("変換エラー:", err);
           }
