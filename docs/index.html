@@ -47,6 +47,15 @@
         button.undo-btn:hover {
             background-color: #c9302c;
         }
+        .toolbar-check {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 6px;
+            font-size: 13px;
+            color: #fff;
+            cursor: pointer;
+        }
         .editor-container {
             flex: 1;
             padding: 10px;
@@ -76,6 +85,7 @@
         <button onclick="processText(toFullWidth)">半角英数 → 全角</button>
         <button onclick="processText(toHalfWidth)">全角英数 → 半角</button>
         <button disabled id="convertBtn">初期化中...</button>
+        <label class="toolbar-check"><input type="checkbox" id="kanaOnly" checked>仮名のみにする</label>
         <button onclick="location.href = './diff.html'">リスト差分</button>
     </div>
 
@@ -107,14 +117,20 @@
           if (!text.trim()) return;
 
           try {
+            const kanaOnly = document.getElementById('kanaOnly').checked;
+
             // mode: "furigana" で <ruby> タグ形式に変換
             // to: "hiragana" で振るルビを「ひらがな」に指定（"katakana" も可能）
             const resultHtml = await kuroshiro.convert(text, {
               mode: "furigana",
               to: "hiragana"
             });
-            ret = resultHtml.replace(/<ruby>/g, "<ruby><span class=\"kanji-box\">");
-            ret = ret.replace(/<rt>/g, "</span><rt>");
+            let ret = resultHtml;
+            // 「仮名のみにする」がONなら ruby 直下の span.kanji-box を付けない
+            if (!kanaOnly) {
+              ret = ret.replace(/<ruby>/g, "<ruby><span class=\"kanji-box\">");
+              ret = ret.replace(/<rt>/g, "</span><rt>");
+            }
             ret = ret.replace(/<rp>.<\/rp>/g, "");
             const ret_array = [];
             let i = 1;
@@ -122,11 +138,12 @@
               if (line == ""){
                 continue;
               }
-              ret_array.push(`<li><span>${i}</span>${line}</li>`)
+              // 「仮名のみにする」がONなら li・行番号を付けない
+              ret_array.push(kanaOnly ? line : `<li><span>${i}</span>${line}</li>`)
               i++;
             }
 
-
+            history.push(text);
             document.getElementById('editor').value = ret_array.join("\n");
           } catch (err) {
             console.error("変換エラー:", err);
